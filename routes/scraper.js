@@ -2,6 +2,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const Router = require('express');
 
+const { requireAdmin } = require('../middleware/auth');
+
 const router = Router();
 const MAX_LOG_LINES = 100;
 
@@ -23,7 +25,7 @@ router.get('/', (_req, res) => {
   res.json(state);
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAdmin, (req, res) => {
   if (state.status === 'running') {
     return res.status(409).json({
       error: 'El scraper ya se está ejecutando.',

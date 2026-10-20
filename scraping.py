@@ -284,6 +284,10 @@ def guardar_en_base_de_datos(file_path, dry_run=False):
     settings = _load_database_settings()
     with psycopg.connect(**settings) as connection:
         with connection.cursor() as cursor:
+            # Piso y capacidad los ingresa el administrador; se conservan.
+            cursor.execute('SELECT name, capacity, floor FROM "Rooms"')
+            room_info = {name: (capacity, floor) for name, capacity, floor in cursor.fetchall()}
+
             # Estas tablas representan una fotografía del semestre scrapeado.
             cursor.execute('DELETE FROM "RoomOccupancies"')
             cursor.execute('DELETE FROM "Courses"')
@@ -358,7 +362,13 @@ def guardar_en_base_de_datos(file_path, dry_run=False):
                         "createdAt",
                         "updatedAt",
                     ),
-                    (room_name, building_ids[building_code], None, None, "now", "now"),
+                    (
+                        room_name,
+                        building_ids[building_code],
+                        *room_info.get(room_name, (None, None)),
+                        "now",
+                        "now",
+                    ),
                 )
 
             course_ids = {}
