@@ -5,6 +5,7 @@ const roomsRouter = require('./routes/rooms');
 const daysRouter = require('./routes/days');
 const modulesRouter = require('./routes/modules');
 const availabilityRouter = require('./routes/availability');
+const scraperRouter = require('./routes/scraper');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use('/rooms', roomsRouter);
 app.use('/days', daysRouter);
 app.use('/modules', modulesRouter);
 app.use('/availability', availabilityRouter);
+app.use('/scraper', scraperRouter);
 
 app.get('/health', (_req, res) => {
 	res.json({ ok: true });

@@ -1,6 +1,11 @@
 node_modules
 npm-debug.log
+.env
+__pycache__
+temp
+CursosUC
 Dockerfile
+Dockerfile.scraper
 docker-compose.yml
 .git
 .gitignore

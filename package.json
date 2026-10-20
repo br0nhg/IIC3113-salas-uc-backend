@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js",
+    "dev": "node index.js",
+    "start": "node index.js",
     "db:migrate": "npx sequelize-cli db:migrate",
     "db:seed": "npx sequelize-cli db:seed:all",
+    "db:export-seed": "node scripts/export-scraped-seed.js",
     "db:reset": "npx sequelize-cli db:migrate:undo:all && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

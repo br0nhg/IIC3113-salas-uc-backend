@@ -30,5 +30,21 @@ services:
       - "${PORT}:${PORT}"
     command: sh -c "node index.js"
 
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    profiles:
+      - tools
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/app
+
 volumes:
   postgres_data:
