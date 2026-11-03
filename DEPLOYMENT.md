@@ -42,6 +42,19 @@ docker compose --env-file .env.production -f compose.production.yml up -d --wait
 No usar `docker compose down -v`: `-v` elimina los volúmenes de la web. Ningún
 comando de este proyecto debe ejecutarse desde la carpeta de botSpear.
 
+## Actualizaciones posteriores
+
+Con los repositorios clonados bajo `/opt/salas-uc`, el script de despliegue obtiene
+la rama `produccion`, rechaza cambios locales, crea un backup previo, ejecuta
+migraciones, actualiza la API y publica una release atómica del frontend:
+
+```bash
+/opt/salas-uc/backend/deploy/scripts/deploy-production.sh
+```
+
+El timer incluido en `deploy/systemd/` ejecuta un backup diario a las 06:30 UTC.
+Los respaldos locales deben complementarse con una copia fuera de la VM.
+
 ## HTTPS usando solamente una IP pública
 
 Let's Encrypt permite certificados para IPv4 e IPv6. Estos certificados usan el

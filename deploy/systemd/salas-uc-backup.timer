@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diario de Salas UC
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=salas-uc-backup.service
+
+[Install]
+WantedBy=timers.target
