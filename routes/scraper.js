@@ -21,7 +21,7 @@ function appendLog(chunk) {
   state.log = state.log.slice(-MAX_LOG_LINES);
 }
 
-router.get('/', (_req, res) => {
+router.get('/', requireAdmin, (_req, res) => {
   res.json(state);
 });
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Backup de PostgreSQL de Salas UC
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/salas-uc/backend
+ExecStart=/opt/salas-uc/backend/deploy/scripts/backup-db.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

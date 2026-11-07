@@ -1,0 +1,96 @@
+name: salas-uc-web
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file:
+      - ${PRODUCTION_ENV_FILE:-.env.production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 150
+    mem_limit: ${DB_MEMORY_LIMIT:-512m}
+    cpus: ${DB_CPU_LIMIT:-0.50}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    restart: unless-stopped
+    init: true
+    read_only: true
+    stop_grace_period: 20s
+    env_file:
+      - ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-3000}:3000"
+    volumes:
+      - scraper_temp:/app/temp
+      - scraper_data:/app/CursosUC
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - database
+      - egress
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 150
+    mem_limit: ${API_MEMORY_LIMIT:-384m}
+    cpus: ${API_CPU_LIMIT:-0.50}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  database:
+    name: salas_uc_database
+    internal: true
+  egress:
+    name: salas_uc_egress
+
+volumes:
+  postgres_data:
+    name: salas_uc_postgres_data
+  scraper_temp:
+    name: salas_uc_scraper_temp
+  scraper_data:
+    name: salas_uc_scraper_data

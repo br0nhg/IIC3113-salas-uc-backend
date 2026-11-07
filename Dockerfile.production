@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+FROM node:22-bookworm-slim
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then \
+      export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; \
+    fi \
+    && npm ci --strict-ssl=true
+
+COPY requirements.txt ./
+RUN --mount=type=secret,id=proxy_ca \
+    apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv \
+    && python3 -m venv /opt/scraper-venv \
+    && if [ -f /run/secrets/proxy_ca ]; then \
+         PIP_CERT=/run/secrets/proxy_ca /opt/scraper-venv/bin/pip install --no-cache-dir -r requirements.txt; \
+       else \
+         /opt/scraper-venv/bin/pip install --no-cache-dir -r requirements.txt; \
+       fi \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/opt/scraper-venv/bin:$PATH"
+
+COPY --chown=node:node . .
+RUN mkdir -p /app/temp /app/CursosUC \
+    && chown -R node:node /app/temp /app/CursosUC
+
+USER node
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]

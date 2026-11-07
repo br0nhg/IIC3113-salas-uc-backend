@@ -13,8 +13,19 @@ const syncRouter = require('./routes/sync');
 
 const app = express();
 
-app.use(express.json());
-app.use(cors());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '100kb' }));
+
+const allowedOrigins = (process.env.CORS_ORIGIN ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (allowedOrigins.length > 0) {
+  app.use(cors({ origin: allowedOrigins }));
+} else if (process.env.NODE_ENV !== 'production') {
+  app.use(cors());
+}
 
 app.use('/buildings', buildingsRouter);
 app.use('/rooms', roomsRouter);
