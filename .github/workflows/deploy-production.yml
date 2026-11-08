@@ -1,6 +1,9 @@
 name: Deploy production
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -42,6 +45,7 @@ jobs:
 
   deploy:
     name: Deploy to OCI
+    if: github.event_name != 'pull_request'
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 30
