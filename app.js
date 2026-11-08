@@ -14,7 +14,7 @@ const syncRouter = require('./routes/sync');
 const app = express();
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '1mb' }));
 
 const allowedOrigins = (process.env.CORS_ORIGIN ?? '')
   .split(',')

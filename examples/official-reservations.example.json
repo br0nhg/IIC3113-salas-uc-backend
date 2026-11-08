@@ -1,0 +1,20 @@
+[
+  {
+    "sala": "B12",
+    "fecha": "2026-11-10",
+    "modulos": [5],
+    "motivo": "Interrogación"
+  },
+  {
+    "sala": "K201",
+    "fecha": "2026-11-12",
+    "modulos": "3-4",
+    "motivo": "Evento"
+  },
+  {
+    "sala": "A6",
+    "fecha": "2026-11-13",
+    "modulos": 7,
+    "motivo": "Ayudantía extraordinaria"
+  }
+]
