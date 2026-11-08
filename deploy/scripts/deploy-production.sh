@@ -6,7 +6,7 @@ frontend_dir="$deploy_root/frontend"
 backend_dir="$deploy_root/backend"
 web_root=${WEB_ROOT:-/var/www/salas-uc}
 public_url=${PUBLIC_URL:-https://146.181.52.135}
-production_branch=${PRODUCTION_BRANCH:-produccion}
+production_branch=${PRODUCTION_BRANCH:-main}
 production_env="$backend_dir/.env.production"
 
 [[ $EUID -ne 0 ]] || {

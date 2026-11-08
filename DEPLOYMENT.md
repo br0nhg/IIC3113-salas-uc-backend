@@ -45,12 +45,23 @@ comando de este proyecto debe ejecutarse desde la carpeta de botSpear.
 ## Actualizaciones posteriores
 
 Con los repositorios clonados bajo `/opt/salas-uc`, el script de despliegue obtiene
-la rama `produccion`, rechaza cambios locales, crea un backup previo, ejecuta
+la rama `main`, rechaza cambios locales, crea un backup previo, ejecuta
 migraciones, actualiza la API y publica una release atómica del frontend:
 
 ```bash
 /opt/salas-uc/backend/deploy/scripts/deploy-production.sh
 ```
+
+Los workflows de GitHub Actions de frontend y backend ejecutan ese script con
+cada `push` a `main`. Cada repositorio debe tener estos Actions secrets:
+
+- `DEPLOY_HOST`: IP pública o nombre DNS de la VM;
+- `DEPLOY_USER`: usuario SSH de despliegue (`ubuntu` en la imagen actual);
+- `DEPLOY_SSH_KEY`: clave privada exclusiva de CI/CD, sin passphrase;
+- `DEPLOY_KNOWN_HOSTS`: entrada verificada de la VM para `known_hosts`.
+
+Ambos workflows usan el mismo bloqueo remoto para que dos merges cercanos no
+ejecuten despliegues simultáneos.
 
 El timer incluido en `deploy/systemd/` ejecuta un backup diario a las 06:30 UTC.
 Los respaldos locales deben complementarse con una copia fuera de la VM.
