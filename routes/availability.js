@@ -4,60 +4,53 @@ const { Building, Room, Day, TimeModule, Course, RoomOccupancy } = require('../m
 
 const router = Router();
 
+/** Asociación con filtro opcional: solo se exige (INNER JOIN) cuando viene el filtro. */
+function filteredInclude(model, as, attributes, where) {
+	return where
+		? { model, as, attributes, where, required: true }
+		: { model, as, attributes, required: false };
+}
+
 router.get('/', async (req, res) => {
 	try {
 		const { building, room, day, module, onlyFree } = req.query;
 
-		const buildings = await Building.findAll();
-		const rooms = await Room.findAll();
-		const days = await Day.findAll();
-		const modules = await TimeModule.findAll();
-		const courses = await Course.findAll();
-		const occupancies = await RoomOccupancy.findAll();
+		// Igual que antes: un módulo que no es número no coincide con ninguna fila.
+		if (module && !/^\d+$/.test(String(module))) return res.json([]);
 
-		const buildingsById = new Map(buildings.map((item) => [item.id, item]));
-		const roomsById = new Map(rooms.map((item) => [item.id, item]));
-		const daysById = new Map(days.map((item) => [item.id, item]));
-		const modulesById = new Map(modules.map((item) => [item.id, item]));
-		const coursesById = new Map(courses.map((item) => [item.id, item]));
-
-		const filtered = occupancies.filter((entry) => {
-			const buildingRow = buildingsById.get(entry.buildingId);
-			const roomRow = roomsById.get(entry.roomId);
-			const dayRow = daysById.get(entry.dayId);
-			const moduleRow = modulesById.get(entry.moduleId);
-
-			return (
-				(!building || buildingRow?.code === building) &&
-				(!room || roomRow?.name === room) &&
-				(!day || dayRow?.code === day) &&
-				(!module || String(moduleRow?.number) === String(module)) &&
-				(onlyFree !== 'true' || entry.isFree)
-			);
+		// Los filtros se aplican en la base de datos en vez de cargar todas las tablas.
+		const occupancies = await RoomOccupancy.findAll({
+			attributes: ['id', 'isFree'],
+			where: onlyFree === 'true' ? { isFree: true } : undefined,
+			include: [
+				filteredInclude(Building, 'building', ['code'], building ? { code: String(building) } : null),
+				filteredInclude(Room, 'room', ['name'], room ? { name: String(room) } : null),
+				filteredInclude(Day, 'day', ['code'], day ? { code: String(day) } : null),
+				filteredInclude(
+					TimeModule,
+					'module',
+					['number'],
+					module ? { number: Number(module) } : null,
+				),
+				{ model: Course, as: 'course', attributes: ['code', 'name'], required: false },
+			],
+			order: [['id', 'ASC']],
 		});
 
-		const result = filtered.map((entry) => {
-			const buildingRow = buildingsById.get(entry.buildingId);
-			const roomRow = roomsById.get(entry.roomId);
-			const dayRow = daysById.get(entry.dayId);
-			const moduleRow = modulesById.get(entry.moduleId);
-			const courseRow = coursesById.get(entry.courseId);
-
-			return {
-				roomId: roomRow?.name ?? null,
-				buildingCode: buildingRow?.code ?? null,
-				day: dayRow?.code ?? null,
-				module: moduleRow?.number ?? null,
-				isFree: entry.isFree,
-				course: courseRow
-					? {
-							code: courseRow.code,
-							section: null,
-							name: courseRow.name,
-						}
-					: null,
-			};
-		});
+		const result = occupancies.map((entry) => ({
+			roomId: entry.room?.name ?? null,
+			buildingCode: entry.building?.code ?? null,
+			day: entry.day?.code ?? null,
+			module: entry.module?.number ?? null,
+			isFree: entry.isFree,
+			course: entry.course
+				? {
+						code: entry.course.code,
+						section: null,
+						name: entry.course.name,
+					}
+				: null,
+		}));
 
 		res.json(result);
 	} catch (error) {
@@ -67,4 +60,3 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
-
