@@ -23,11 +23,12 @@ test('normaliza una importación y expande cada módulo', () => {
     { sala: ' b12 ', fecha: '2026-11-10', modulos: [5], motivo: ' Interrogación ' },
     { sala: 'K201', fecha: '2026-11-12', modulos: '3-4', motivo: 'Evento' },
   ]);
-  assert.deepEqual(result.reservations, [
+  assert.deepEqual(result.reservations.map(({ groupId: _groupId, ...item }) => item), [
     { roomName: 'B12', date: '2026-11-10', module: 5, reason: 'Interrogación' },
     { roomName: 'K201', date: '2026-11-12', module: 3, reason: 'Evento' },
     { roomName: 'K201', date: '2026-11-12', module: 4, reason: 'Evento' },
   ]);
+  assert.equal(result.reservations[1].groupId, result.reservations[2].groupId);
 });
 
 test('rechaza duplicados y archivos con filas inválidas', () => {

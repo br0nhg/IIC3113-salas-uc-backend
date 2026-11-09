@@ -1,5 +1,7 @@
 'use strict';
 
+const { randomUUID } = require('node:crypto');
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isIsoDate(value) {
@@ -68,7 +70,8 @@ function normalizeImport(body) {
     if (!reason || reason.length > 200) {
       return { error: `El motivo de la reserva ${row} debe tener entre 1 y 200 caracteres.` };
     }
-    for (const module of modules) reservations.push({ roomName, date, module, reason });
+    const groupId = randomUUID();
+    for (const module of modules) reservations.push({ groupId, roomName, date, module, reason });
   }
 
   const seen = new Set();
