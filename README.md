@@ -149,9 +149,24 @@ Revisa y versiona el JSON generado antes de utilizarlo como seed oficial.
 - `GET /rooms`: salas.
 - `GET /days`: días.
 - `GET /modules`: módulos horarios.
-- `GET /availability`: disponibilidad y ocupaciones.
+- `GET /availability`: disponibilidad y ocupaciones. Los parámetros `date`
+  (`YYYY-MM-DD`) o `weekStart` incorporan las reservas oficiales cargadas.
+- `POST /admin/official-reservations/import`: reemplaza, con autenticación de
+  administrador, las reservas de las semanas incluidas en un JSON.
 - `POST /scraper`: inicia el scraper.
 - `GET /scraper`: estado de la ejecución del scraper.
 
 La ruta que inicia el scraper es una operación costosa. Si la API se publica en
 internet, se recomienda protegerla con autenticación y límites de solicitudes.
+
+## Reservas oficiales
+
+El panel de administración acepta un arreglo JSON de objetos con `sala`,
+`fecha`, `modulos` y `motivo`. `modulos` puede ser un número, un arreglo o un
+rango como `"3-4"`. Hay un archivo completo en
+`examples/official-reservations.example.json`.
+
+La importación valida todo antes de escribir y reemplaza solamente las semanas
+presentes en el archivo. Las salas desconocidas se omiten y se informan en la
+respuesta. En la consulta, una reserva oficial tiene prioridad sobre la
+ocupación de BuscaCursos para esa sala, fecha y módulo.
