@@ -1,7 +1,7 @@
 const Router = require('express');
 
 const { Op } = require('sequelize');
-const { OccupancyReport, OfficialReservation, Room, User, sequelize } = require('../models');
+const { Favorite, OccupancyReport, OfficialReservation, Room, User, sequelize } = require('../models');
 const { requireAdmin } = require('../middleware/auth');
 const { normalizeImport, weekBounds } = require('../services/officialReservations');
 const {
@@ -256,10 +256,22 @@ router.patch('/reports/:id', async (req, res) => {
   }
 });
 
-// Métricas de la consola. Por ahora, la cantidad de reportes pendientes vigentes.
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Métricas de la consola, calculadas con los datos que guarda la API.
 router.get('/metrics', async (_req, res) => {
   try {
-    res.json({ openReports: await countPendingReports(nowInSantiago()) });
+    const clock = nowInSantiago();
+    const [students, newStudents, favorites, openReports, activeReportBlocks, upcomingReservations] =
+      await Promise.all([
+        User.count({ where: { role: 'student' } }),
+        User.count({ where: { role: 'student', createdAt: { [Op.gte]: new Date(Date.now() - WEEK_MS) } } }),
+        Favorite.count(),
+        countPendingReports(clock),
+        OccupancyReport.count({ where: { status: 'accepted', blockedUntilDate: { [Op.gte]: clock.date } } }),
+        OfficialReservation.count({ where: { date: { [Op.gte]: clock.date } }, distinct: true, col: 'groupId' }),
+      ]);
+    res.json({ students, newStudents, favorites, openReports, activeReportBlocks, upcomingReservations });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });

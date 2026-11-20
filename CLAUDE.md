@@ -66,9 +66,9 @@ docker compose run --rm --no-deps -v "$PWD:/app" api npm run db:export-seed
   | `POST /reports` | sesión | `{ roomId, date, module, reason, detail }`; motivos `class event exam locked maintenance other`; solo módulos en curso o futuros (hora de Chile, `services/occupancyReports.js`) |
   | `GET /me/reports` | sesión | reportes propios; un `pending` cuyo bloque terminó se informa como `expired` |
   | `GET /admin/reports?status=pending\|accepted\|rejected\|all`, `PATCH /admin/reports/:id` | admin | incluye `reporter { name, email }`; PATCH `{ action: 'accept', untilDate, untilModule }` o `{ action: 'reject' }` |
-  | `GET /admin/metrics` | admin | `{ openReports }` |
+  | `GET /admin/metrics` | admin | `{ students, newStudents (7 días), favorites, openReports, activeReportBlocks, upcomingReservations }` |
   | `PATCH /admin/rooms/:name` | admin | `{ capacity?, floor? }`, entero ≥ 0 o `null` |
-  | `POST /scraper` / `GET /scraper` | admin / público | 202 al iniciar, 409 si ya corre; el GET devuelve el estado y las últimas 100 líneas del log |
+  | `POST /scraper` / `GET /scraper` | admin | 202 al iniciar, 409 si ya corre; el GET devuelve el estado y las últimas 100 líneas del log |
 
 ## Convenciones
 
