@@ -62,6 +62,7 @@ No hay tests (`npm test` es un placeholder). Para verificar un cambio en una rut
   | `POST /auth/register`, `/auth/login` | público | `{ user: { id (string), name, email, role }, token }` (`User.toPublic()`) |
   | `POST /auth/logout` | público | 204 |
   | `GET/POST /me/favorites`, `DELETE /me/favorites/:roomId` | sesión | `{ roomId, createdAt }`, más recientes primero |
+  | `PATCH /me`, `DELETE /me` | sesión | editar nombre `{ name }` → `{ user }`; eliminar cuenta `{ password }` → 204 (borra también sus favoritos) |
   | `PATCH /admin/rooms/:name` | admin | `{ capacity?, floor? }`, entero ≥ 0 o `null` |
   | `POST /scraper` / `GET /scraper` | admin / público | 202 al iniciar, 409 si ya corre; el GET devuelve el estado y las últimas 100 líneas del log |
 
