@@ -1,8 +1,9 @@
 const bcrypt = require('bcryptjs');
 const Router = require('express');
 
-const { Favorite, Room, User, sequelize } = require('../models');
+const { Favorite, OccupancyReport, Room, User, sequelize } = require('../models');
 const { requireAuth } = require('../middleware/auth');
+const { toPublicReport } = require('../services/occupancyReports');
 
 const router = Router();
 
@@ -35,6 +36,7 @@ router.delete('/', async (req, res) => {
     }
     await sequelize.transaction(async (transaction) => {
       await Favorite.destroy({ where: { userId: req.user.id }, transaction });
+      await OccupancyReport.destroy({ where: { userId: req.user.id }, transaction });
       await User.destroy({ where: { id: req.user.id }, transaction });
     });
     res.status(204).end();
@@ -82,6 +84,21 @@ router.delete('/favorites/:roomId', async (req, res) => {
   try {
     await Favorite.destroy({ where: { userId: req.user.id, roomName: req.params.roomId } });
     res.status(204).end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reportes de ocupación enviados por el usuario, más recientes primero.
+router.get('/reports', async (req, res) => {
+  try {
+    const reports = await OccupancyReport.findAll({
+      where: { userId: req.user.id },
+      order: [['createdAt', 'DESC']],
+      limit: 50,
+    });
+    res.json(reports.map((report) => toPublicReport(report)));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });

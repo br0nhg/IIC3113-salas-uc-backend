@@ -1,9 +1,15 @@
 const Router = require('express');
 
 const { Op } = require('sequelize');
-const { OfficialReservation, Room, sequelize } = require('../models');
+const { OccupancyReport, OfficialReservation, Room, User, sequelize } = require('../models');
 const { requireAdmin } = require('../middleware/auth');
 const { normalizeImport, weekBounds } = require('../services/officialReservations');
+const {
+  effectiveStatus,
+  normalizeBlockEnd,
+  nowInSantiago,
+  toPublicReport,
+} = require('../services/occupancyReports');
 
 const router = Router();
 
@@ -160,6 +166,100 @@ router.delete('/official-reservations/:groupId', async (req, res) => {
     const deleted = await OfficialReservation.destroy({ where: { groupId } });
     if (!deleted) return res.status(404).json({ error: 'La reserva no existe.' });
     res.status(204).end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/* ---------- Reportes de ocupación (REQ-20 a REQ-22) ---------- */
+
+const REPORT_FILTERS = ['pending', 'accepted', 'rejected', 'all'];
+
+async function countPendingReports(clock) {
+  const pending = await OccupancyReport.findAll({
+    where: { status: 'pending', date: { [Op.gte]: clock.date } },
+    attributes: ['date', 'module', 'status'],
+  });
+  return pending.filter((report) => effectiveStatus(report, clock) === 'pending').length;
+}
+
+function toAdminReport(report, clock) {
+  return {
+    ...toPublicReport(report, clock),
+    reporter: report.user ? { name: report.user.name, email: report.user.email } : null,
+  };
+}
+
+// ?status=pending (por defecto, solo los vigentes) | accepted | rejected | all
+router.get('/reports', async (req, res) => {
+  try {
+    const filter = String(req.query.status ?? 'pending');
+    if (!REPORT_FILTERS.includes(filter)) {
+      return res.status(400).json({ error: 'status debe ser pending, accepted, rejected o all.' });
+    }
+    const clock = nowInSantiago();
+    const reports = await OccupancyReport.findAll({
+      where: filter === 'all' ? undefined : { status: filter },
+      include: [{ model: User, as: 'user', attributes: ['name', 'email'], required: false }],
+      order: [['createdAt', 'DESC']],
+      limit: 200,
+    });
+    const result = reports
+      .filter((report) => filter !== 'pending' || effectiveStatus(report, clock) === 'pending')
+      .map((report) => toAdminReport(report, clock));
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// { action: 'accept', untilDate, untilModule } | { action: 'reject' }
+router.patch('/reports/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const report = Number.isInteger(id)
+      ? await OccupancyReport.findByPk(id, {
+          include: [{ model: User, as: 'user', attributes: ['name', 'email'], required: false }],
+        })
+      : null;
+    if (!report) return res.status(404).json({ error: 'El reporte no existe.' });
+
+    const clock = nowInSantiago();
+    const action = req.body?.action;
+    if (action === 'accept') {
+      const normalized = normalizeBlockEnd(report, req.body?.untilDate, req.body?.untilModule);
+      if (normalized.error) return res.status(400).json({ error: normalized.error });
+      await report.update({
+        status: 'accepted',
+        blockedUntilDate: normalized.until.date,
+        blockedUntilModule: normalized.until.module,
+        reviewedBy: req.user.id,
+        reviewedAt: new Date(),
+      });
+    } else if (action === 'reject') {
+      await report.update({
+        status: 'rejected',
+        blockedUntilDate: null,
+        blockedUntilModule: null,
+        reviewedBy: req.user.id,
+        reviewedAt: new Date(),
+      });
+    } else {
+      return res.status(400).json({ error: 'action debe ser accept o reject.' });
+    }
+    res.json(toAdminReport(report, clock));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Métricas de la consola. Por ahora, la cantidad de reportes pendientes vigentes.
+router.get('/metrics', async (_req, res) => {
+  try {
+    res.json({ openReports: await countPendingReports(nowInSantiago()) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });

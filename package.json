@@ -10,7 +10,7 @@
     "db:seed": "npx sequelize-cli db:seed:all",
     "db:export-seed": "node scripts/export-scraped-seed.js",
     "db:reset": "npx sequelize-cli db:migrate:undo:all && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all",
-    "test": "node test/officialReservations.test.js"
+    "test": "node --test test/officialReservations.test.js test/occupancyReports.test.js"
   },
   "repository": {
     "type": "git",
