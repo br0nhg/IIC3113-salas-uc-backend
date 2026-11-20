@@ -27,12 +27,12 @@ docker compose run --rm scraper --import-file CursosUC/cursos_uc_2026-2.txt --dr
 docker compose run --rm --no-deps -v "$PWD:/app" api npm run db:export-seed
 ```
 
-No hay tests (`npm test` es un placeholder). Para verificar un cambio en una ruta, reconstruir la imagen (`docker compose build api && docker compose up -d api`) y probar con `curl`.
+`npm test` corre los tests unitarios de `test/` (`node --test`, sin base de datos). Para verificar un cambio en una ruta, reconstruir la imagen (`docker compose build api && docker compose up -d api`) y probar con `curl`.
 
 ## Arquitectura
 
 - **Express 5 + Sequelize 6 (PostgreSQL), CommonJS.** `index.js` autentica la conexión y escucha en `PORT`. `app.js` monta `cors()`, `express.json()` y un router por recurso en `routes/`. La configuración de la base está en `config/config.js` (variables `DB_*`). Los modelos se cargan automáticamente en `models/index.js`.
-- **Modelo de datos** (`models/`, `migrations/`): `Building` (code, name, description), `Room` (name, buildingId, capacity, floor), `Day` (code `L M W J V S`, con `W` = miércoles; name, shortName), `TimeModule` (number 1–9, start, end; horario oficial UC de M1 08:20–09:30 a M9 20:10–21:20), `Course` (code, name), `RoomOccupancy` (roomId, buildingId, dayId, moduleId, courseId, isFree), `User` (name, email, passwordHash, role `student | admin`) y `Favorite` (userId, roomName).
+- **Modelo de datos** (`models/`, `migrations/`): `Building` (code, name, description), `Room` (name, buildingId, capacity, floor), `Day` (code `L M W J V S`, con `W` = miércoles; name, shortName), `TimeModule` (number 1–9, start, end; horario oficial UC de M1 08:20–09:30 a M9 20:10–21:20), `Course` (code, name), `RoomOccupancy` (roomId, buildingId, dayId, moduleId, courseId, isFree), `User` (name, email, passwordHash, role `student | admin`), `Favorite` (userId, roomName) y `OccupancyReport` (userId, roomName, date, module, reason, detail, status `pending | accepted | rejected`, blockedUntilDate/Module, reviewedBy, reviewedAt).
   - `RoomOccupancy` tiene **una fila por sala × día × módulo**. Si el bloque está libre, la fila lleva `isFree: true` y `courseId: null`. Si está ocupado, hay **una fila por cada curso** (`isFree: false`), por eso una sala puede tener más de 54 filas.
   - Las migraciones no definen claves foráneas, salvo `Favorites.userId`. Las asociaciones con alias (`room`, `building`, `day`, `module`, `course`) se declaran en los modelos.
 - **Snapshot del semestre:** el scraper y el seed **borran y recrean** `RoomOccupancies`, `Courses`, `Rooms` y `Buildings`, así que los ids cambian en cada carga. Consecuencias:
@@ -57,12 +57,16 @@ No hay tests (`npm test` es un placeholder). Para verificar un cambio en una rut
   | Ruta | Acceso | Notas |
   |---|---|---|
   | `GET /buildings`, `/rooms`, `/days`, `/modules` | público | devuelven las filas de Sequelize tal cual |
-  | `GET /availability?building&room&day&module&onlyFree=true` | público | filtra en SQL con `include` + `where`; respuesta `[{ roomId, buildingCode, day, module, isFree, course: { code, section: null, name } \| null }]` |
+  | `GET /availability?building&room&day&module&onlyFree=true` | público | filtra en SQL con `include` + `where`; respuesta `[{ roomId, buildingCode, day, module, isFree, course: { code, section: null, name } \| null, reservation }]`. Con `date` o `weekStart` aplica reservas oficiales y reportes aceptados: `reservation: { date, reason, kind: 'official' \| 'report' }` (la oficial gana en el mismo bloque) |
   | `GET /sync/status` | público | `{ lastSyncAt }` |
   | `POST /auth/register`, `/auth/login` | público | `{ user: { id (string), name, email, role }, token }` (`User.toPublic()`) |
   | `POST /auth/logout` | público | 204 |
   | `GET/POST /me/favorites`, `DELETE /me/favorites/:roomId` | sesión | `{ roomId, createdAt }`, más recientes primero |
   | `PATCH /me`, `DELETE /me` | sesión | editar nombre `{ name }` → `{ user }`; eliminar cuenta `{ password }` → 204 (borra también sus favoritos) |
+  | `POST /reports` | sesión | `{ roomId, date, module, reason, detail }`; motivos `class event exam locked maintenance other`; solo módulos en curso o futuros (hora de Chile, `services/occupancyReports.js`) |
+  | `GET /me/reports` | sesión | reportes propios; un `pending` cuyo bloque terminó se informa como `expired` |
+  | `GET /admin/reports?status=pending\|accepted\|rejected\|all`, `PATCH /admin/reports/:id` | admin | incluye `reporter { name, email }`; PATCH `{ action: 'accept', untilDate, untilModule }` o `{ action: 'reject' }` |
+  | `GET /admin/metrics` | admin | `{ openReports }` |
   | `PATCH /admin/rooms/:name` | admin | `{ capacity?, floor? }`, entero ≥ 0 o `null` |
   | `POST /scraper` / `GET /scraper` | admin / público | 202 al iniciar, 409 si ya corre; el GET devuelve el estado y las últimas 100 líneas del log |
 

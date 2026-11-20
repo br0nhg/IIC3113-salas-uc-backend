@@ -9,8 +9,10 @@ const {
 	Course,
 	RoomOccupancy,
 	OfficialReservation,
+	OccupancyReport,
 } = require('../models');
 const { isIsoDate, weekBounds } = require('../services/officialReservations');
+const { expandBlockedSlots, overlayReason } = require('../services/occupancyReports');
 
 const router = Router();
 
@@ -74,46 +76,81 @@ router.get('/', async (req, res) => {
 
 		if (date || weekStart) {
 			const normalizedWeekStart = weekStart ? weekBounds(String(weekStart))[0] : null;
-			const dateWhere = date
-				? String(date)
-				: { [Op.between]: weekBounds(String(weekStart)) };
+			const [rangeStart, rangeEnd] = date ? [String(date), String(date)] : weekBounds(String(weekStart));
+			const dateWhere = date ? String(date) : { [Op.between]: [rangeStart, rangeEnd] };
 			const reservationWhere = { date: dateWhere };
 			if (room) reservationWhere.roomName = String(room).toUpperCase();
 			if (module) reservationWhere.module = Number(module);
 
-			let reservations = await OfficialReservation.findAll({
+			const reservations = await OfficialReservation.findAll({
 				where: reservationWhere,
 				order: [['date', 'ASC'], ['roomName', 'ASC'], ['module', 'ASC']],
 			});
-			if (day) {
-				reservations = reservations.filter((item) => dayCodeForDate(item.date) === String(day));
+
+			// Bloques que ocupan la sala aunque BuscaCursos la muestre libre. La reserva
+			// oficial pesa más que un reporte de usuarios aceptado en el mismo bloque.
+			const overlays = reservations.map((item) => ({
+				roomName: item.roomName,
+				date: item.date,
+				module: item.module,
+				reason: item.reason,
+				kind: 'official',
+			}));
+			const slotKey = (roomName, slotModule, slotDate) => `${roomName}|${slotModule}|${slotDate}`;
+			const officialKeys = new Set(overlays.map((item) => slotKey(item.roomName, item.module, item.date)));
+
+			const reportWhere = {
+				status: 'accepted',
+				date: { [Op.lte]: rangeEnd },
+				blockedUntilDate: { [Op.gte]: rangeStart },
+			};
+			if (room) reportWhere.roomName = String(room).toUpperCase();
+			const acceptedReports = await OccupancyReport.findAll({
+				where: reportWhere,
+				order: [['reviewedAt', 'ASC']],
+			});
+			for (const report of acceptedReports) {
+				for (const slot of expandBlockedSlots(report)) {
+					if (slot.date < rangeStart || slot.date > rangeEnd) continue;
+					if (module && slot.module !== Number(module)) continue;
+					const key = slotKey(report.roomName, slot.module, slot.date);
+					if (officialKeys.has(key)) continue;
+					officialKeys.add(key);
+					overlays.push({
+						roomName: report.roomName,
+						date: slot.date,
+						module: slot.module,
+						reason: overlayReason(report),
+						kind: 'report',
+					});
+				}
 			}
-			const reservedKeys = new Set(
-				reservations.map((item) => `${item.roomName}|${item.module}|${item.date}`),
-			);
+
+			const dayOverlays = day
+				? overlays.filter((item) => dayCodeForDate(item.date) === String(day))
+				: overlays;
+			const overlayKeys = new Set(dayOverlays.map((item) => slotKey(item.roomName, item.module, item.date)));
 			result = result.filter((item) => {
 				const itemDate = date || dateForDayInWeek(normalizedWeekStart, item.day);
-				return !reservedKeys.has(`${item.roomId}|${item.module}|${itemDate}`);
+				return !overlayKeys.has(slotKey(item.roomId, item.module, itemDate));
 			});
 
 			const rooms = await Room.findAll({
-				where: { name: { [Op.in]: [...new Set(reservations.map((item) => item.roomName))] } },
+				where: { name: { [Op.in]: [...new Set(dayOverlays.map((item) => item.roomName))] } },
 				include: [{ model: Building, as: 'building', attributes: ['code'], required: true }],
 			});
 			const roomByName = new Map(rooms.map((item) => [item.name, item]));
-			for (const reservation of reservations) {
-				const roomRow = roomByName.get(reservation.roomName);
+			for (const overlay of dayOverlays) {
+				const roomRow = roomByName.get(overlay.roomName);
 				if (!roomRow || (building && roomRow.building.code !== String(building))) continue;
-				const reservationDay = dayCodeForDate(reservation.date);
-				if (day && reservationDay !== String(day)) continue;
 				result.push({
 					roomId: roomRow.name,
 					buildingCode: roomRow.building.code,
-					day: reservationDay,
-					module: reservation.module,
+					day: dayCodeForDate(overlay.date),
+					module: overlay.module,
 					isFree: false,
 					course: null,
-					reservation: { date: reservation.date, reason: reservation.reason },
+					reservation: { date: overlay.date, reason: overlay.reason, kind: overlay.kind },
 				});
 			}
 		}
